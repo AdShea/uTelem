@@ -1,0 +1,6 @@
+This is a simple telemetry server used by UMNSVP for the 2008 North American
+Solar Challenge.  It reads a telemetry packet stream (currently set up for
+J1850) from a serial port, logs incoming packets with a timestamp, and listens
+on a network port (8192 default) for TCP connections.  When a client connects
+it is sent the packet stream in real time.  NC and egrep are really helpful
+for quick and dirty viewing.
