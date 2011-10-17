@@ -1,0 +1,30 @@
+\documentclass[12pt,letterpaper]{proc}
+\usepackage{fullpage}
+
+\title{CAN Serial stream format}
+\author{Adam Shea}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+
+\section{Requirements}
+
+\section{Base64}
+
+\section{Application specific}
+
+\begin{tiny}
+\begin{tabular}[h]{r|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|}
+\hline
+Bits&31 30&29 28&27 26&25 24&23 22&21 20&19 18&17 16&
+15 14&13 12&11 10&9 8&7 6&5 4&3 2&1 0 \\ \hline
+Base64&[ blank ]&\multicolumn{3}{c|}{A to f}&\multicolumn{3}{c|}{A to /}&
+\multicolumn{3}{c|}{A to /}&\multicolumn{3}{c|}{A to /}&
+\multicolumn{3}{c|}{A to /} \\ \hline
+\end{tabular}
+\end{tiny}
+
+\end{document}
