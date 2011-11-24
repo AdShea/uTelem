@@ -1,10 +1,13 @@
 #!/usr/bin/env python
 
 import sys
+from collections import defaultdict
+from string import Formatter
 
 import PySide
 
-from PySide.QtCore import QRect, QMetaObject, QObject, Qt
+from PySide.QtCore import (QRect, QMetaObject, QObject, Qt, QThread,
+                           Signal)
 from PySide.QtGui  import (QApplication, QMainWindow, QWidget, 
                            QGridLayout, QTabWidget, QPlainTextEdit,
                            QMenuBar, QMenu, QStatusBar, QAction, 
@@ -14,11 +17,13 @@ from PySide.QtGui  import (QApplication, QMainWindow, QWidget,
 
 maxHistory = 100
 
+
 class ConnectionTab(QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, socket, parent=None):
         super(ConnectionTab, self).__init__(parent)
         self.connected = False
         self.client = None
+        self.sock = socket
         self.grid = QGridLayout(self)
         self.statusLabel = QLabel('Not Connected')
         self.statusLabel.setAlignment(Qt.AlignCenter)
@@ -45,6 +50,27 @@ class ConnectionTab(QWidget):
             self.conButton.setText('Dis&connect')
             self.address.setDisabled(True)
             self.connected = True
+
+    def sockChange(self, state):
+        if state is QAbstractSocket.UnconnectedState:
+            self.statusLabel.setText('Not Connected')
+            self.conButton.setText('&Connect')
+            self.address.setDisabled(False)
+        elif state is QAbstractSocket.HostLookupState:
+            self.statusLabel.setText('Looking up Host')
+            self.address.setDisabled(True)
+        elif state is QAbstractSocket.ConnectingState:
+            self.statusLabel.setText('Connecting')
+            self.address.setDisabled(True)
+        elif state is QAbstractSocket.ConnectedState:
+            self.statusLabel.setText('Connected to '+self.sock.peerName())
+            self.conButton.setText('Dis&connect')
+            self.address.setDisabled(True)
+        elif state is QAbstractSocket.ClosingState:
+            self.statusLabel.setText('Closing connection')
+
+    def consume(self, packet):
+        pass
 
 
 class PacketWatch(QWidget):
@@ -100,9 +126,71 @@ class TelemTab(QScrollArea):
     def addControl(self):
         self.grid.addWidget(QPushButton("yay"))
 
-    def consume(self):
+    def consume(self, packet):
         for control in self.controls:
             control.consume(self.data)
+
+
+class SystemState():
+    def __init__(self, spec=None):
+        self.units = {}
+        self.data = defaultdict(float)
+        self.time = {}
+        self.dt = {}
+        self.packets = defaultdict(Packet)
+        self.handlers = defaultdict(list)
+        self.packets['data'] = self.data
+        if spec: self.loadSpecification(spec)
+
+    def consume(self, packet):
+        print self.data
+        self.packets['dt'] = packet.time - self.packets['x{0:08x}_{1:d}'.format(packet.header,
+                len(packet.data))].time
+        if self.packets['dt'] > 24*60*60: self.packets['dt'] = 0
+        self.packets['x{:08x}'.format(packet.header)] = packet
+        self.packets['x{0:08x}_{1:d}'.format(packet.header,len(packet.data))] = packet
+        for datum,expression in self.handlers[packet.header]:
+            expression = expression.strip().format(**self.packets)
+            if expression[0] == '+':
+                self.data[datum] += eval(expression[1:])
+            else:
+                self.data[datum] = eval(expression)
+            self.time[datum] = packet.time
+
+    def loadSpecification(self, spec):
+        self.handlers = defaultdict(list)
+        self.data = defaultdict(float)
+        self.units = {}
+        self.time = {}
+        for line in spec:
+            self.appendSpecification(line)
+        
+    def appendSpecification(self, spec):
+        spec = spec.strip().split(':')
+        self.units[spec[0]] = spec[1]
+        f = Formatter()
+        fields = (x[1] for x in f.parse(spec[2]))
+        for fill in fields:
+            if f[0] == 'x':
+                idx = min(x.find('_'),x.find('.'))
+                if idx < 0:
+                    self.handlers[int(x[1:],16)] = (spec[0],spec[2])
+                else:
+                    self.handlers[int(x[1:idx],16)] = (spec[0],spec[2])
+
+
+class Packet():
+    def __init__(self, text=None):
+        if text:
+            text = text.strip().split(',')
+            self.time = float(text[0])
+            self.header = int(text[1],16)
+            self.data = [int(x,16) for x in text[2:]]
+        else:
+            self.time = 0
+            self.header = 0
+            self.data = []
+
 
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
@@ -112,12 +200,31 @@ class MainWindow(QMainWindow):
         gridLayout = QGridLayout(centralwidget)
         self.tabWidget = QTabWidget(centralwidget)
         self.connection = ConnectionTab()
-        self.tabWidget.addTab(self.connection, "Connection") 
+        self.tabWidget.addTab(self.connection, "Connection")
         self.tabWidget.addTab(TelemTab(self),"Sensors")
 
         gridLayout.addWidget(self.tabWidget)
         self.setCentralWidget(centralwidget)
 
+    
+
+    def readData(self):
+        self.data += self.socket(readAll)
+
+	ind = self.data.find('\n')
+	while ind > 0:
+            packet = self.data[:ind + 1]
+            self.data = self.data[ind + 1:]
+            if packet[0] == '!':
+                self.readSpec(packet[1:])
+                continue
+            packet = Packet(packet)
+            ind = self.data.find('\n')
+            
+            self.dataParser.consume(packet)
+            for page in (self.tabWidget.widget(x) for x in 
+                    xrange(self.tabWidget.count())):
+                page.consume(packet)
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
