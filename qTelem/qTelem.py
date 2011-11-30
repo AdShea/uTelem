@@ -149,13 +149,25 @@ class SystemState():
         if self.packets['dt'] > 24*60*60: self.packets['dt'] = 0
         self.packets['x{:08x}'.format(packet.header)] = packet
         self.packets['x{0:08x}_{1:d}'.format(packet.header,len(packet.data))] = packet
+        dlist = []
         for datum,expression in self.handlers[packet.header]:
+            dlist.append(datum)
             expression = expression.strip().format(**self.packets)
             if expression[0] == '+':
                 self.data[datum] += eval(expression[1:])
             else:
                 self.data[datum] = eval(expression)
             self.time[datum] = packet.time
+        for source in dlist:
+            for datum,expression in self.handlers[source]:
+                expression = expression.strip().format(**self.packets)
+                if expression[0] == '+':
+                    self.data[datum] += eval(expression[1:])
+                else:
+                    self.data[datum] = eval(expression)
+                self.time[datum] = packet.time
+        for callback in self.watchers:
+            callback(self)
 
     def loadSpecification(self, spec):
         self.handlers = defaultdict(list)
@@ -191,6 +203,12 @@ class Packet():
             self.header = 0
             self.data = []
 
+    def __str__(self):
+        return '{0:.3f},{1:08x},{2}\r\n'.format(self.time,self.header,
+                ','.join(('{:02x}'.format(x) for x in self.data)))
+
+    def __repr__(self):
+        return 'Packet(' + str(self).strip() + ')'
 
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
