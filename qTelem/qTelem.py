@@ -13,7 +13,7 @@ from PySide.QtGui  import (QApplication, QMainWindow, QWidget,
                            QMenuBar, QMenu, QStatusBar, QAction, 
                            QIcon, QFileDialog, QMessageBox, QFont,
                            QLabel, QLineEdit, QPushButton,
-                           QScrollArea, QSizePolicy)
+                           QScrollArea, QSizePolicy, QVBoxLayout)
 
 maxHistory = 100
 
@@ -108,6 +108,76 @@ class PacketWatch(QWidget):
     def setHeader(self, header):
         self.header = header
         self.headerTxt.setReadOnly(True)
+
+class DataPlotter(QWidget):
+
+
+class DataBar(QWidget):
+    def __init__(self, parent=None):
+        super(DataBar,self).__init__(parent)
+        self.grid = QGridLayout(self)
+        self.config = QWidget(self)
+        self.confGrid = QGridLayout(self.config)
+        self.config.hide()
+        self.grid.addWidget(self.config,0,1,1,3)
+        self.label = QLabel('None',parent=self)
+        self.bar = QProgressBar(parent=self)
+        self.value = QLabel('0',parent=self)
+        self.grid.addWidget(self.label,0,0,1,1)
+        self.grid.addWidget(self.bar,1,0,1,1)
+        self.grid.addWidget(self.value,2,0,1,1)
+        self.label.clicked.connect(self.switchConf)
+        self.bar.clicked.connect(self.switchConf)
+        self.value.clicked.connect(self.switchConf)
+        self.datum = QLineEdit('',parent=self.config)
+        self.min = QLineEdit('',parent=self.config)
+        self.max = QLineEdit('',parent=self.config)
+        self.confGrid.addWidget(QLabel('Datum'),0,0,1,1)
+        self.confGrid.addWidget(self.datum,1,0,1,1)
+        self.confGrid.addWidget(QLabel('Min'),2,0,1,1)
+        self.confGrid.addWidget(self.min,3,0,1,1)
+        self.confGrid.addWidget(QLabel('Max'),4,0,1,1)
+        self.confGrid.addWidget(self.max,5,0,1,1)
+        self.killButton = QPushButton('Remove',self.config)
+        self.confGrid.addWidget(self.killButton,6,0,1,1)
+        self.killButton.clicked.connect(self.killMe)
+        self.datum.textChanged.connect(self.changeDatum)
+        self.min.textChanged.connect(self.setLimits)
+        self.max.textChanged.connect(self.setLimits)
+        self.lastdb = None
+
+    def switchConf(self):
+        self.config.setVisible(not self.config.isVisible())
+
+    def setLimits(self):
+        self.bar.setMinimum = float(self.min.text())
+        self.bar.setMaximum = float(self.max.text())
+
+    def killMe(self):
+        parent.unmake(self)
+        self.destroy()
+
+    def changeDatum(self):
+        self.label.setText(self.datum.text())
+        if self.lastdb:
+            if self.lastdb.data.has_key(self.datum.text()):
+                self.value.setText(str(self.lastdb.data[datum]) + self.lastdb.units[datum])
+                self.bar.setValue(self.lastdb.data[datum])
+
+    def updateData(self,db):
+        self.lastdb = db
+        datum = self.datum.text()
+        if datum:
+            self.value.setText(str(db.data[datum]) + db.units[datum])
+            self.bar.setValue(db.data[datum])
+
+class DataLights(QWidget):
+
+
+class DataSlider(QWidget):
+
+
+class DataWatch(QWidget):
 
 
 class TelemTab(QScrollArea):
